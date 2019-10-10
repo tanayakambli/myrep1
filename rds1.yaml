@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  StackPrefix:
+    Type: String
+
+  RetentionPeriod:
+    Type: Number
+    MinValue: 1
+    MaxValue: 35
+    Description: Days to keep snapshots
+
+Resources:
+
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref AWS::StackName
+      VpcId: vpc-74121c12
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          #SourceSecurityGroupId:
+          #  Fn::ImportValue:
+          #    !Sub ${StackPrefix}-cluster-sg
+
+  SubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Ref AWS::StackName
+      SubnetIds:
+        - subnet-54c18a1c
+        - subnet-f647c2ac
+
+  ParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Description: !Ref AWS::StackName
+      Family: aurora-postgresql10
+      Parameters:
+        client_encoding: 'UTF8'
+
+  MasterSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${StackPrefix}-db
+      GenerateSecretString:
+        SecretStringTemplate: '{"DBMasterUsername": "master"}'
+        GenerateStringKey: DBMasterUserPassword
+        ExcludePunctuation: true
+
+
+
+  Cluster:
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Type: AWS::RDS::DBCluster
+    Properties:
+    #  AssociatedRoles:
+    #    - RoleArn: !GetAtt IAMRole.Arn
+      BackupRetentionPeriod: !Ref RetentionPeriod
+      DatabaseName: !Ref StackPrefix
+      DBClusterParameterGroupName: !Ref ParameterGroup
+      DBSubnetGroupName: !Ref SubnetGroup
+      Engine: aurora-postgresql
+      EngineMode: serverless
+      ScalingConfiguration:
+        AutoPause: true
+        MaxCapacity: 4
+        MinCapacity: 2
+        SecondsUntilAutoPause: 600
+      EngineVersion: 10.7
+      KmsKeyId: !GetAtt EncryptionKey.Arn
+      MasterUsername: !Sub '{{resolve:secretsmanager:${MasterSecret}:SecretString:DBMasterUsername}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${MasterSecret}:SecretString:DBMasterUserPassword}}'
+      Port: 5432
+      StorageEncrypted: true
+      VpcSecurityGroupIds:
+        - !Ref SecurityGroup
+
+
+
+
+
+
+  EncryptionKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    Properties:
+      Description: !Ref AWS::StackName
+      Enabled: true
+      EnableKeyRotation: true
+      KeyUsage: ENCRYPT_DECRYPT
+      PendingWindowInDays: 30
+      KeyPolicy: !Sub |
+        {
+          "Version": "2012-10-17",
+          "Id": "${AWS::StackName}",
+          "Statement": [
+            {
+              "Sid": "Allow access for Key Administrators",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "arn:aws:iam::${AWS::AccountId}:root"
+              },
+              "Action": [
+                "kms:Create*",
+                "kms:Describe*",
+                "kms:Enable*",
+                "kms:List*",
+                "kms:Put*",
+                "kms:Update*",
+                "kms:Revoke*",
+                "kms:Disable*",
+                "kms:Get*",
+                "kms:Delete*",
+                "kms:TagResource",
+                "kms:UntagResource",
+                "kms:ScheduleKeyDeletion",
+                "kms:CancelKeyDeletion"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "Allow access for Database",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "arn:aws:iam::${AWS::AccountId}:root"
+              },
+              "Action": [
+                "kms:Encrypt",
+                "kms:Decrypt"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringEquals": {
+                  "kms:ViaService": "rds.${AWS::Region}.amazonaws.com"
+                }
+              }
+            },
+            {
+              "Sid": "Allow attachment of persistent resources",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "arn:aws:iam::${AWS::AccountId}:root"
+              },
+              "Action": [
+                "kms:CreateGrant",
+                "kms:ListGrants",
+                "kms:RevokeGrant"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "Bool": {
+                  "kms:GrantIsForAWSResource": "true"
+                }
+              }
+            }
+          ]
+        }
