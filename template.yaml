@@ -269,7 +269,7 @@ Resources:
         Ref: TaskExecutionRole
       ContainerDefinitions:
       - Name: smerf
-        Image: httpd
+        Image: manageiq/httpd
         Essential: true
         PortMappings:
         - ContainerPort: 8800
