@@ -269,7 +269,7 @@ Resources:
         Ref: TaskExecutionRole
       ContainerDefinitions:
       - Name: smerf
-        Image: amazon/amazon-ecs-sample
+        Image: nginxdemos/hello
         Essential: true
         PortMappings:
         - ContainerPort: 8800
