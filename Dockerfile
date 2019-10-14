@@ -1,2 +1,2 @@
-FROM nginx:1.17.4
+FROM nginx:1.16.1-perl
 RUN df -h
