@@ -1,0 +1,25 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
+      - TAG="$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)\"\n
+      - IMAGE_URI="${REPOSITORY_URI}:${TAG}"
+      - mkdir docker
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build --tag $IMAGE_URI
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push "$IMAGE_URI
+      - echo Writing image definitions file...
+       - printf '[{"name":"smerf","imageUri":"%s","Essential":"true"}]' "$IMAGE_URI" > images.json
+artifacts:
+    files: images.json
