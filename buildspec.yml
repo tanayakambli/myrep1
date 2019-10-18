@@ -20,6 +20,6 @@ phases:
       - echo Pushing the Docker images...
       - docker push $IMAGE_URI
       - echo Writing image definitions file...
-      - printf '[{"ImageURI":"%s"}]' "$IMAGE_URI" > images.json
+      - printf '[{"name":"smerf","ImageURI":"%s"}]' "$IMAGE_URI" > images.json
 artifacts:
     files: images.json
